@@ -138,6 +138,11 @@ jobs:
           ## Gamescope with Touchpad Support
           
           Based on upstream tag: **${{ steps.sync.outputs.tag }}**
+          ## License
+
+          This build is based on [bazzite-org/gamescope](https://github.com/bazzite-org/gamescope) which is licensed under BSD 2-Clause License.
+
+          See the [original LICENSE](https://github.com/bazzite-org/gamescope/blob/gamescope-ba/LICENSE) for details.
           
           This build adds libinput touchpad configuration support.
           
