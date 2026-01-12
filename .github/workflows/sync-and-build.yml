@@ -14,6 +14,7 @@ jobs:
     steps:
       - name: Install Official BuildRequires
         run: |
+          # referring to https://github.com/ublue-os/bazzite/blob/main/spec_files/gamescope/gamescope.spec
           dnf install -y git meson ninja-build gcc-c++ pkgconf-pkg-config cmake \
           wayland-devel wayland-protocols-devel libX11-devel libXcomposite-devel \
           libXcursor-devel libXdamage-devel libXext-devel libXfixes-devel \
