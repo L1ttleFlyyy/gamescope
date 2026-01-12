@@ -1,0 +1,127 @@
+name: Sync and Build Gamescope
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync-and-build:
+    runs-on: ubuntu-latest
+    container: 
+      image: fedora:43
+      
+    steps:
+    - name: Install dependencies
+      run: |
+        dnf install -y git rpm-build rpmdevtools curl cpio
+        
+    - name: Checkout feat-touchpad-support branch
+      uses: actions/checkout@v4
+      with:
+        ref: feat-touchpad-support
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Configure git
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        
+    - name: Sync with upstream
+      id: sync
+      run: |
+        git remote add upstream https://github.com/bazzite-org/gamescope.git || true
+        git fetch upstream
+        
+        # 尝试 merge
+        if git merge upstream/gamescope-ba --no-edit; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          git push origin feat-touchpad-support
+        else
+          echo "status=conflict" >> $GITHUB_OUTPUT
+          echo "❌ Merge conflict - please resolve manually"
+          exit 1
+        fi
+        
+    - name: Setup RPM build directory
+      if: steps.sync.outputs.status == 'success'
+      run: |
+        mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+        
+    - name: Download bazzite spec files
+      if: steps.sync.outputs.status == 'success'
+      run: |
+        cd ~/rpmbuild/SPECS
+        curl -fsSL https://raw.githubusercontent.com/ublue-os/bazzite/main/spec_files/gamescope/gamescope.spec -o gamescope.spec
+        
+        grep -E "^(Source|Patch)[0-9]*:" gamescope.spec | while read -r line; do
+            filename=$(echo "$line" | awk '{print $2}')
+            curl -fsSL https://raw.githubusercontent.com/ublue-os/bazzite/main/spec_files/gamescope/$filename \
+              -o ~/rpmbuild/SOURCES/$filename 2>/dev/null || true
+        done
+        
+    - name: Modify spec for this repository
+      if: steps.sync.outputs.status == 'success'
+      run: |
+        cd ~/rpmbuild/SPECS
+        sed -i \
+          -e "s|URL:.*|URL: https://github.com/${{ github.repository }}|" \
+          -e "s|%global version.*|%global version feat-touchpad-support|" \
+          -e "s|--branch %{version}|--branch feat-touchpad-support|" \
+          gamescope.spec
+          
+    - name: Install build dependencies
+      if: steps.sync.outputs.status == 'success'
+      run: |
+        cd ~/rpmbuild/SPECS
+        dnf builddep -y gamescope.spec
+        
+    - name: Build RPM
+      if: steps.sync.outputs.status == 'success'
+      run: |
+        rpmbuild -bb ~/rpmbuild/SPECS/gamescope.spec
+        
+    - name: Extract gamescope binary from RPM
+      if: steps.sync.outputs.status == 'success'
+      run: |
+        cd ~/rpmbuild/RPMS/x86_64
+        rpm2cpio gamescope-*.x86_64.rpm | cpio -idmv './usr/bin/gamescope'
+        mv usr/bin/gamescope $GITHUB_WORKSPACE/gamescope
+        chmod +x $GITHUB_WORKSPACE/gamescope
+        ls -lh $GITHUB_WORKSPACE/gamescope
+        
+    - name: Get commit info
+      if: steps.sync.outputs.status == 'success'
+      id: commit
+      run: |
+        SHORT_SHA=$(git rev-parse --short HEAD)
+        echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+        echo "date=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+        
+    - name: Create release
+      if: steps.sync.outputs.status == 'success'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: build-${{ steps.commit.outputs.date }}-${{ steps.commit.outputs.short_sha }}
+        name: Build ${{ steps.commit.outputs.date }}
+        body: |
+          ## Gamescope with Touchpad Support
+          
+          This build adds libinput touchpad configuration support to gamescope, enabling features like tap-to-click, natural scrolling, tap-and-drag, etc. in Game Mode.
+          
+          **Commit:** ${{ steps.commit.outputs.short_sha }}
+          
+          ### Installation
+          
+          1. Download the `gamescope` binary to a local directory (e.g., `~/bin/`)
+          2. Make it executable: `chmod +x ~/bin/gamescope`
+          3. Configure environment in `~/.config/environment.d/gamescope-custom.conf`:
+             `GAMESCOPE_BIN="$HOME/bin/gamescope --tap-to-click --natural-scrolling touchpad --tap-and-drag --drag-lock"`
+          4. Restart your session
+          
+          **Reference:** See [gamescope-session-plus](https://github.com/bazzite-org/gamescope-session/blob/main/usr/share/gamescope-session-plus/gamescope-session-plus) for how `GAMESCOPE_BIN` is used.
+        files: gamescope
+        draft: false
+        prerelease: false
