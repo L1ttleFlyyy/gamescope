@@ -18,9 +18,9 @@ jobs:
         echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
         
         # check if already built
-        EXISTING=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/build-$LATEST_TAG || echo "not found")
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://api.github.com/repos/${{ github.repository }}/releases/tags/build-$LATEST_TAG)
         
-        if [[ "$EXISTING" == *"not found"* ]]; then
+        if [[ "$HTTP_CODE" == "404" ]]; then
           echo "should_build=true" >> $GITHUB_OUTPUT
           echo "✅ New tag detected: $LATEST_TAG"
         else
