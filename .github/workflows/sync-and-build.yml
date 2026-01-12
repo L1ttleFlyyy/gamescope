@@ -16,10 +16,10 @@ jobs:
       run: |
         dnf install -y git rpm-build rpmdevtools curl cpio
         
-    - name: Checkout feat-touchpad-support branch
+    - name: Checkout branch
       uses: actions/checkout@v4
       with:
-        ref: feat-touchpad-support
+        ref: ${{ github.ref_name }}
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
         
@@ -38,7 +38,7 @@ jobs:
         # 尝试 merge
         if git merge upstream/gamescope-ba --no-edit; then
           echo "status=success" >> $GITHUB_OUTPUT
-          git push origin feat-touchpad-support
+          git push origin ${{ github.ref_name }}
         else
           echo "status=conflict" >> $GITHUB_OUTPUT
           echo "❌ Merge conflict - please resolve manually"
@@ -68,8 +68,8 @@ jobs:
         cd ~/rpmbuild/SPECS
         sed -i \
           -e "s|URL:.*|URL: https://github.com/${{ github.repository }}|" \
-          -e "s|%global version.*|%global version feat-touchpad-support|" \
-          -e "s|--branch %{version}|--branch feat-touchpad-support|" \
+          -e "s|%global version.*|%global version ${{ github.ref_name }}|" \
+          -e "s|--branch %{version}|--branch ${{ github.ref_name }}|" \
           gamescope.spec
           
     - name: Install build dependencies
