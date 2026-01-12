@@ -6,7 +6,31 @@ on:
   workflow_dispatch:
 
 jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check for new upstream tags
+      id: check
+      run: |
+        # get bazzite tag version
+        LATEST_TAG=$(curl -s https://api.github.com/repos/bazzite-org/gamescope/tags | jq -r '.[0].name')
+        echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+        
+        # check if already built
+        EXISTING=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/build-$LATEST_TAG || echo "not found")
+        
+        if [[ "$EXISTING" == *"not found"* ]]; then
+          echo "should_build=true" >> $GITHUB_OUTPUT
+          echo "✅ New tag detected: $LATEST_TAG"
+        else
+          echo "should_build=false" >> $GITHUB_OUTPUT
+          echo "⏭️  Tag $LATEST_TAG already built"
+        fi
+
   sync-and-build:
+    needs: check-and-build
+    if: needs.check-and-build.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     container: 
       image: fedora:43
@@ -14,7 +38,7 @@ jobs:
     steps:
     - name: Install dependencies
       run: |
-        dnf install -y git rpm-build rpmdevtools curl cpio
+        dnf install -y git rpm-build rpmdevtools curl cpio jq
         
     - name: Checkout branch
       uses: actions/checkout@v4
@@ -29,19 +53,20 @@ jobs:
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
         
-    - name: Sync with upstream
+    - name: Sync with upstream tag
       id: sync
       run: |
         git remote add upstream https://github.com/bazzite-org/gamescope.git || true
-        git fetch upstream
+        git fetch upstream --tags
         
-        # 尝试 merge
-        if git merge upstream/gamescope-ba --no-edit; then
+        LATEST_TAG="${{ needs.check-and-build.outputs.latest_tag }}"
+        
+        if git merge $LATEST_TAG --no-edit; then
           echo "status=success" >> $GITHUB_OUTPUT
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
           git push origin ${{ github.ref_name }}
         else
           echo "status=conflict" >> $GITHUB_OUTPUT
-          echo "❌ Merge conflict - please resolve manually"
           exit 1
         fi
         
@@ -104,14 +129,14 @@ jobs:
       if: steps.sync.outputs.status == 'success'
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: build-${{ steps.commit.outputs.date }}-${{ steps.commit.outputs.short_sha }}
-        name: Build ${{ steps.commit.outputs.date }}
+        tag_name: build-${{ steps.sync.outputs.tag }}
+        name: Build for ${{ steps.sync.outputs.tag }}
         body: |
           ## Gamescope with Touchpad Support
           
-          This build adds libinput touchpad configuration support to gamescope, enabling features like tap-to-click, natural scrolling, tap-and-drag, etc. in Game Mode.
+          Based on upstream tag: **${{ steps.sync.outputs.tag }}**
           
-          **Commit:** ${{ steps.commit.outputs.short_sha }}
+          This build adds libinput touchpad configuration support.
           
           ### Installation
           
