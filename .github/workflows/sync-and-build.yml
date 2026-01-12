@@ -14,8 +14,7 @@ jobs:
     steps:
       - name: Install Official BuildRequires
         run: |
-          # referring to https://github.com/ublue-os/bazzite/blob/main/spec_files/gamescope/gamescope.spec
-          dnf install -y git meson ninja-build gcc-c++ pkgconf-pkg-config \
+          dnf install -y git meson ninja-build gcc-c++ pkgconf-pkg-config cmake \
           wayland-devel wayland-protocols-devel libX11-devel libXcomposite-devel \
           libXcursor-devel libXdamage-devel libXext-devel libXfixes-devel \
           libXi-devel libXinerama-devel libXrandr-devel libXrender-devel \
@@ -23,9 +22,9 @@ jobs:
           libxkbcommon-devel pixman-devel mesa-libgbm-devel mesa-libEGL-devel \
           mesa-libGLES-devel vulkan-loader-devel libseat-devel hwdata-devel \
           libavif-devel libcap-devel systemd-devel libcap-ng-devel \
-          libdisplay-info-devel benchmark-devel glslang libliftoff-devel \
+          libdisplay-info-devel google-benchmark-devel glslang libliftoff-devel \
           stb_image-devel stb_image_write-devel stb_image_resize-devel \
-          pipewire-devel pulseaudio-libs-devel
+          pipewire-devel pulseaudio-libs-devel glm-devel libXmu-devel edid-decode
 
       - name: Checkout
         uses: actions/checkout@v4
