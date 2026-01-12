@@ -8,6 +8,9 @@ on:
 jobs:
   check-and-build:
     runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      latest_tag: ${{ steps.check.outputs.latest_tag }}
     
     steps:
     - name: Check for new upstream tags
